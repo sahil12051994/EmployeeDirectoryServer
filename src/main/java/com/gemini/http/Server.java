@@ -9,52 +9,62 @@ import io.netty.channel.socket.nio.NioServerSocketChannel;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
 
+import com.gemini.utils.CSVParser;
+
+@Component
 public class Server {
 
 	private static Logger l = LoggerFactory.getLogger(Server.class);
-	private int port;
+	private @Value("${http.port}") String port;
+	private EventLoopGroup bossGroup;
+	private EventLoopGroup workerGroup;
+	private ChannelFuture f;
+
+	public @Autowired CSVParser csvParser;
 	
-	public Server(int port){
-		this.port = port;
-	}
-	
-	public void run() throws Exception{
-		EventLoopGroup bossGroup = new NioEventLoopGroup();
-        EventLoopGroup workerGroup = new NioEventLoopGroup();
+	public void initialize() throws Exception{
+		bossGroup = new NioEventLoopGroup();
+        workerGroup = new NioEventLoopGroup();
         try {
             ServerBootstrap b = new ServerBootstrap();
             b.group(bossGroup, workerGroup)
              .channel(NioServerSocketChannel.class)
              .childHandler(new HttpInitializer())
-             .option(ChannelOption.SO_BACKLOG, 128)          // (5)
-             .childOption(ChannelOption.SO_KEEPALIVE, true); // (6)
+             .option(ChannelOption.SO_BACKLOG, 128)
+             .childOption(ChannelOption.SO_KEEPALIVE, true);
 
             // Bind and start to accept incoming connections.
             l.debug("Starting Server @ localhost:{}", port);
-            ChannelFuture f = b.bind(port).sync(); // (7)
+            l.debug("csv parser:{}", CSVParser.getData());
+            f = b.bind(Integer.parseInt(port)).sync();
 
-            // Wait until the server socket is closed.
-            // In this example, this does not happen, but you can do that to gracefully
-            // shut down your server.
             f.channel().closeFuture().sync();
+        } catch(Exception e){
+        	l.error("Exception occured in initializing the server {}", new Object[]{e.getStackTrace()});
         } finally {
-            workerGroup.shutdownGracefully();
-            bossGroup.shutdownGracefully();
+        	shutDown();
         }
 	}
 	
-	public static void main(String[] args) {
-		int port;
-        if (args.length > 0) {
-            port = Integer.parseInt(args[0]);
-        } else {
-            port = 8080;
-        }
-        try {
-			new Server(port).run();
-		} catch (Exception e) {
-			l.error("Error occured: {}", e.getMessage());
+	public CSVParser getCsvParser(){
+		return csvParser;
+	}
+	
+	public void shutDown() {
+		int exitCode = 0;
+		try{
+			l.debug("Shutting down gracefully");
+			workerGroup.shutdownGracefully();
+            bossGroup.shutdownGracefully();
+		} catch(Exception e){
+			l.error("Error in shutting down the server {}", new Object[]{e.getStackTrace()});
+			exitCode = 1;
+		} finally {
+			System.exit(exitCode);
 		}
 	}
 }

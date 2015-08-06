@@ -2,54 +2,70 @@ package com.gemini.utils;
 
 import java.io.BufferedReader;
 import java.io.FileNotFoundException;
-import java.io.FileReader;
 import java.io.IOException;
-import java.util.concurrent.ConcurrentHashMap;
+import java.io.InputStreamReader;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
 
+@Component
 public class CSVParser {
 
 	private static final Logger l = LoggerFactory.getLogger(CSVParser.class);
-	private static ConcurrentHashMap<String, String> directory = 
-			new ConcurrentHashMap<String, String>();
+	private @Value("${csvFile}") String csvFile;
+	private @Value("${csvSeparator}") String csvSeparator;
+	private static JSONArray data = new JSONArray();
 	
-	public ConcurrentHashMap<String, String> run() {
-		 
-		String csvFile = "../../../people.csv";
+	public void parse() {
+		
 		BufferedReader br = null;
 		String line = "";
-		String csvSplitBy = ",";
 	 
 		try {
-			br = new BufferedReader(new FileReader(getClass().getResource(csvFile).getPath()));
+			l.debug("CSV File to be read: {}", csvFile);
+			br = new BufferedReader(
+					new InputStreamReader(
+							CSVParser.class.getClassLoader().getResourceAsStream(csvFile)
+							)
+					);
 			while ((line = br.readLine()) != null) {
-				directory.put(line.split(csvSplitBy)[0], line.split(csvSplitBy)[1]);
+				JSONObject entry = new JSONObject();
+				entry.put("eid", line.split(csvSeparator)[0]);
+				entry.put("name", line.split(csvSeparator)[1]);
+				entry.put("phone", line.split(csvSeparator)[2]);
+				entry.put("status", Integer.parseInt(line.split(csvSeparator)[3]));
+				data.put(entry);
 			}
 			
 			l.debug("Successfully parsed file");
-			return directory;
+			
 		} catch (FileNotFoundException e) {
-			e.printStackTrace();
-			return null;
+			l.error("Error in parsing: {}", new Object[] {e.getStackTrace()});
 		} catch (IOException e) {
-			e.printStackTrace();
-			return null;
+			l.error("Error in parsing: {}", new Object[] {e.getStackTrace()});
 		} finally {
 			if (br != null) {
 				try {
 					br.close();
 				} catch (IOException e) {
-					e.printStackTrace();
+					l.error("Error in closing resource: {}", 
+							new Object[] {e.getStackTrace()});
 				}
 			}
 		}
 		
 	  }
 	
+	public static JSONArray getData(){
+		return data;
+	}
+	
 	public static void main(String[] args) {
 		CSVParser parser = new CSVParser();
-		parser.run();
+		parser.parse();
 	}
 }

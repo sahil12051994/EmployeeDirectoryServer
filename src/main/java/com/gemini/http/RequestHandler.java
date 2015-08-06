@@ -1,7 +1,6 @@
 package com.gemini.http;
 
 import io.netty.buffer.Unpooled;
-import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
@@ -9,9 +8,9 @@ import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
+import io.netty.handler.codec.http.LastHttpContent;
 import io.netty.util.ReferenceCountUtil;
 
-import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -24,19 +23,24 @@ public class RequestHandler extends ChannelInboundHandlerAdapter{
 	@Override
 	public void channelRead(final ChannelHandlerContext ctx, Object msg){
 		try{
-			l.debug("Request received from client: {}" );
-			CSVParser csvs = new CSVParser();
-			JSONObject obj = new JSONObject(csvs.run());
+			l.debug("Request received from client: \n{}", msg.toString() );
+			
 			if (msg instanceof HttpRequest) {
 
-				FullHttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK, Unpooled.wrappedBuffer(obj.toString().getBytes()));
+				l.debug("Building HTTP response");
+				FullHttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK, Unpooled.wrappedBuffer(CSVParser.getData().toString().getBytes()));
 				response.headers().set("content-type", "application/json");
 				response.headers().set("content-length", response.content().readableBytes());
 
-				ctx.write(response).addListener(ChannelFutureListener.CLOSE);
 				ctx.write(response);
-			}
+				
+			} else if (msg instanceof LastHttpContent)
+				l.debug("HTTP Request completed");
+				
+		} catch(Exception e) {
+			l.error("Exception occured: {}", new Object[]{e.getStackTrace()});
 		} finally {
+			l.debug("Releasing request buffer object");
 			ReferenceCountUtil.release(msg);
 		}
 	}
